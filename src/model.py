@@ -14,6 +14,7 @@ class SimulationResult:
     description: str
     depth: np.ndarray
     times: np.ndarray
+    steps: np.ndarray
     zeta: np.ndarray
     U: np.ndarray
     V: np.ndarray
@@ -60,7 +61,6 @@ def step_forward(
     depth: np.ndarray,
     wind_x: float,
     wind_y: float,
-    dt: float,
     config: ModelConfig,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     wet_mask = depth > 0.0
@@ -86,11 +86,11 @@ def step_forward(
         - config.coriolis_f * U
     )
 
-    next_U = _apply_closed_boundaries(U + dt * dUdt, wet_mask)
-    next_V = _apply_closed_boundaries(V + dt * dVdt, wet_mask)
+    next_U = _apply_closed_boundaries(U + config.dt * dUdt, wet_mask)
+    next_V = _apply_closed_boundaries(V + config.dt * dVdt, wet_mask)
 
     div_transport = gradient_x(next_U, config.dx, wet_mask) + gradient_y(next_V, config.dy, wet_mask)
-    next_zeta = np.where(wet_mask, zeta - dt * div_transport, 0.0)
+    next_zeta = np.where(wet_mask, zeta - config.dt * div_transport, 0.0)
 
     if not np.all(np.isfinite(next_zeta)) or not np.all(np.isfinite(next_U)) or not np.all(np.isfinite(next_V)):
         raise FloatingPointError("Simulation produced NaN or infinite values.")
@@ -102,7 +102,6 @@ def run_simulation(
     scenario: Scenario,
     depth: np.ndarray,
     config: ModelConfig,
-    dt: float,
 ) -> SimulationResult:
     scenario_depth = apply_artificial_barrier(depth) if scenario.add_barrier else depth.copy()
     wet_mask = scenario_depth > 0.0
@@ -116,6 +115,7 @@ def run_simulation(
     saved_U: list[np.ndarray] = []
     saved_V: list[np.ndarray] = []
     saved_times: list[float] = []
+    saved_steps: list[int] = []
     saved_winds: list[tuple[float, float]] = []
 
     for step in range(config.steps + 1):
@@ -123,14 +123,15 @@ def run_simulation(
             saved_zeta.append(zeta.copy())
             saved_U.append(U.copy())
             saved_V.append(V.copy())
-            saved_times.append(step * dt)
+            saved_times.append(step * config.dt)
+            saved_steps.append(step)
             saved_winds.append(scenario.wind(min(step, config.steps - 1)))
 
         if step == config.steps:
             break
 
         wind_x, wind_y = scenario.wind(step)
-        zeta, U, V = step_forward(zeta, U, V, scenario_depth, wind_x, wind_y, dt, config)
+        zeta, U, V = step_forward(zeta, U, V, scenario_depth, wind_x, wind_y, config)
         zeta = np.where(wet_mask, zeta, 0.0)
         U = _apply_closed_boundaries(U, wet_mask)
         V = _apply_closed_boundaries(V, wet_mask)
@@ -140,11 +141,11 @@ def run_simulation(
         description=scenario.description,
         depth=scenario_depth,
         times=np.asarray(saved_times),
+        steps=np.asarray(saved_steps),
         zeta=np.asarray(saved_zeta),
         U=np.asarray(saved_U),
         V=np.asarray(saved_V),
         winds=np.asarray(saved_winds),
-        dt=dt,
+        dt=config.dt,
         config=config,
     )
-

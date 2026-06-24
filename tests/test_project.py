@@ -24,21 +24,23 @@ class SweProjectTests(unittest.TestCase):
         self.assertEqual(set(np.unique(self.depth)), {0.0, 10.0, 20.0, 30.0, 40.0})
 
     def test_wind_scenarios(self) -> None:
-        self.assertEqual(SCENARIOS[0].wind(0), (10.0, 0.0))
+        self.assertEqual(SCENARIOS[0].wind(0), (-10.0, 0.0))
         self.assertEqual(SCENARIOS[1].wind(0), (0.0, 10.0))
-        self.assertEqual(SCENARIOS[1].wind(50), (10.0, 0.0))
+        self.assertEqual(SCENARIOS[1].wind(50), (-10.0, 0.0))
         self.assertEqual(SCENARIOS[1].wind(250), (0.0, 0.0))
-        self.assertEqual(SCENARIOS[2].wind(199), (10.0, 5.0))
-        self.assertEqual(SCENARIOS[2].wind(200), (0.0, 0.0))
+        self.assertEqual(SCENARIOS[2].wind(49), (-10.0, -5.0))
+        self.assertEqual(SCENARIOS[2].wind(50), (-10.0, 0.0))
+        self.assertEqual(SCENARIOS[2].wind(249), (-10.0, 0.0))
+        self.assertEqual(SCENARIOS[2].wind(250), (0.0, 0.0))
 
-    def test_barrier_sets_middle_y_to_land(self) -> None:
+    def test_barrier_sets_middle_x_to_land(self) -> None:
         barrier_depth = apply_artificial_barrier(self.depth)
-        middle_y = self.depth.shape[1] // 2
-        self.assertTrue(np.all(barrier_depth[:, middle_y] == 0.0))
+        middle_x = self.depth.shape[0] // 2
+        self.assertTrue(np.all(barrier_depth[middle_x, :] == 0.0))
         self.assertEqual(barrier_depth.shape, self.depth.shape)
 
     def test_short_run_is_finite_and_keeps_land_masked(self) -> None:
-        result = run_simulation(SCENARIOS[0], self.depth, self.config, self.config.dt)
+        result = run_simulation(SCENARIOS[0], self.depth, self.config)
         self.assertTrue(np.all(np.isfinite(result.zeta)))
         self.assertTrue(np.all(np.isfinite(result.U)))
         self.assertTrue(np.all(np.isfinite(result.V)))
@@ -46,7 +48,7 @@ class SweProjectTests(unittest.TestCase):
 
     def test_output_figures_are_created(self) -> None:
         config = replace(self.config, steps=5, output_every=1)
-        results = [run_simulation(scenario, self.depth, config, config.dt) for scenario in SCENARIOS]
+        results = [run_simulation(scenario, self.depth, config) for scenario in SCENARIOS]
         with TemporaryDirectory() as tmp:
             out = Path(tmp)
             plot_all(results, out)

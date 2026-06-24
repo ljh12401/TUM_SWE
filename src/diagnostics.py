@@ -90,6 +90,7 @@ def save_npz(result: SimulationResult, output_path: Path) -> None:
         output_path,
         depth=result.depth,
         times=result.times,
+        steps=result.steps,
         zeta=result.zeta,
         U=result.U,
         V=result.V,

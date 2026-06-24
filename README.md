@@ -4,7 +4,7 @@ This project implements the semester assignment Shallow Water Equation: a four-s
 
 ## What Is Included
 
-- `src/config.py`: physical constants, grid defaults, CFL-based time step.
+- `src/config.py`: physical constants, grid defaults, and manually selected time step.
 - `src/scenarios.py`: the four wind/barrier scenarios.
 - `src/model.py`: finite-difference shallow water solver for `zeta`, `U`, and `V`.
 - `src/diagnostics.py`: velocity, vorticity, eddy kinetic energy, summary CSV, data export.
@@ -16,8 +16,10 @@ This project implements the semester assignment Shallow Water Equation: a four-s
 - `bathymetry.txt` has shape `(40, 20)`.
 - Depth `H=0` means land or closed boundary.
 - Grid indices are Python zero-based indices. The required point `[25, 10]` is read as `zeta[:, 25, 10]`.
-- `WX=10` represents the easterly wind used in the assignment text; `WY=10` represents northward wind.
-- Because no `dx`, `dy`, or `dt` is provided in the lecture PDF, defaults are `dx=dy=1000 m` and `dt` is selected automatically from a CFL safety factor.
+- Plan-view figures use the intuitive plotting convention: `x index` is horizontal and `y index` is vertical. Arrays are stored internally as `(x, y)` and transposed only for display.
+- Wind components use positive `WX` eastward and positive `WY` northward. Meteorological easterly wind is represented as `WX=-10`; northward wind is represented as `WY=10`; meteorological northerly wind is represented as `WY=-5`.
+- Because no `dx`, `dy`, or `dt` is provided in the lecture PDF, defaults are `dx=dy=1000 m` and `dt=5 s`.
+- Saved `.npz` result files include one frame per model step by default, plus the corresponding `steps` array.
 
 ## Run Everything
 
@@ -30,6 +32,18 @@ Optional overrides:
 ```bash
 python3 -m src.run_all --steps 1000 --output-every 5 --dx 1000 --dy 1000
 python3 -m src.run_all --dt 10
+```
+
+Replay saved sea-level and streamline flow fields directly from disk:
+
+```bash
+python3 -m src.replay_zeta outputs/data/scenario_1.npz
+```
+
+Render a GIF replay instead of live playback:
+
+```bash
+python3 -m src.replay_zeta outputs/data/scenario_1.npz --save-gif outputs/animations/scenario_1_replay.gif
 ```
 
 The run writes:
@@ -55,4 +69,3 @@ The run writes:
 ```bash
 python3 -m unittest discover -s tests
 ```
-

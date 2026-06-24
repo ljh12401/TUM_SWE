@@ -20,7 +20,7 @@ class ModelConfig:
     dy: float = 1000.0
     dt: float = 5.0
     steps: int = 1000
-    output_every: int = 5
+    output_every: int = 1
     g: float = 9.81
     friction: float = 0.003
     wind_stress: float = 3.2e-6

@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--draw-every", type=int, default=5, help="Refresh the figure every N model steps.")
     parser.add_argument("--dx", type=float, default=1000.0, help="Grid spacing in x direction, meters.")
     parser.add_argument("--dy", type=float, default=1000.0, help="Grid spacing in y direction, meters.")
+    parser.add_argument("--dt", type=float, default=5.0, help="Time step in seconds.")
     parser.add_argument("--pause", type=float, default=0.03, help="Pause duration between rendered frames.")
     parser.add_argument("--no-block", action="store_true", help="Exit immediately when the computation finishes.")
     return parser.parse_args()
@@ -50,34 +51,33 @@ def velocity(U: np.ndarray, V: np.ndarray, depth: np.ndarray) -> tuple[np.ndarra
 
 def main() -> None:
     args = parse_args()
-    config = replace(ModelConfig(), steps=args.steps, dx=args.dx, dy=args.dy)
+    config = replace(ModelConfig(), steps=args.steps, dx=args.dx, dy=args.dy, dt=args.dt)
     scenario = find_scenario(args.scenario)
     original_depth = load_bathymetry(config.bathymetry_path)
     depth = apply_artificial_barrier(original_depth) if scenario.add_barrier else original_depth.copy()
     wet_mask = depth > 0.0
-    dt = config.dt
 
     zeta = np.zeros_like(depth, dtype=float)
     U = np.zeros_like(depth, dtype=float)
     V = np.zeros_like(depth, dtype=float)
 
     extent = (
-        0.0,
-        depth.shape[1] * config.dy / 1000.0,
-        0.0,
-        depth.shape[0] * config.dx / 1000.0,
+        -0.5,
+        depth.shape[0] - 0.5,
+        -0.5,
+        depth.shape[1] - 0.5,
     )
-    y_km = np.arange(depth.shape[1]) * config.dy / 1000.0
-    x_km = np.arange(depth.shape[0]) * config.dx / 1000.0
-    yy, xx = np.meshgrid(y_km, x_km)
+    x_index = np.arange(depth.shape[0])
+    y_index = np.arange(depth.shape[1])
+    xx, yy = np.meshgrid(x_index, y_index)
     stride = 2
 
     plt.ion()
-    fig, (lake_ax, line_ax) = plt.subplots(1, 2, figsize=(14, 7), dpi=120, width_ratios=[1.0, 1.15])
+    fig, (lake_ax, line_ax) = plt.subplots(1, 2, figsize=(14, 5.8), dpi=120, width_ratios=[1.15, 1.0])
     fig.subplots_adjust(left=0.06, right=0.96, bottom=0.11, top=0.88, wspace=0.28)
     zeta_scale = 0.05
     image = lake_ax.imshow(
-        np.where(wet_mask, zeta, np.nan),
+        np.where(wet_mask, zeta, np.nan).T,
         origin="lower",
         extent=extent,
         aspect="equal",
@@ -85,54 +85,53 @@ def main() -> None:
         vmin=-zeta_scale,
         vmax=zeta_scale,
     )
-    lake_ax.contour(y_km, x_km, wet_mask.astype(float), levels=[0.5], colors="#333333", linewidths=0.8)
+    lake_ax.contour(x_index, y_index, wet_mask.T.astype(float), levels=[0.5], colors="#333333", linewidths=0.8)
     u, v = velocity(U, V, depth)
     arrows = lake_ax.quiver(
-        yy[::stride, ::stride],
         xx[::stride, ::stride],
-        np.nan_to_num(v[::stride, ::stride]),
-        np.nan_to_num(u[::stride, ::stride]),
+        yy[::stride, ::stride],
+        np.nan_to_num(u.T[::stride, ::stride]),
+        np.nan_to_num(v.T[::stride, ::stride]),
         color="black",
         scale=0.35,
         width=0.003,
     )
-    lake_ax.set_xlabel("y distance (km)")
-    lake_ax.set_ylabel("x distance (km)")
+    lake_ax.set_xlabel("x index")
+    lake_ax.set_ylabel("y index")
     colorbar = fig.colorbar(image, ax=lake_ax, shrink=0.82)
     colorbar.set_label("zeta (m)")
 
     point_i, point_j = config.point_index
-    times: list[float] = []
+    steps: list[int] = []
     point_zeta: list[float] = []
     (line,) = line_ax.plot([], [], color="#1f77b4", linewidth=2.0)
     line_ax.set_title("Sea level at [25, 10]")
-    line_ax.set_xlabel("Time (hours)")
+    line_ax.set_xlabel("time step")
     line_ax.set_ylabel("zeta (m)")
     line_ax.grid(True, alpha=0.35)
 
     print(f"Live rendering {scenario.name}: {scenario.description}")
-    print(f"dx={config.dx:.1f} m, dy={config.dy:.1f} m, dt={dt:.3f} s")
+    print(f"dx={config.dx:.1f} m, dy={config.dy:.1f} m, dt={config.dt:.3f} s")
 
     for step in range(args.steps + 1):
         if step % args.draw_every == 0 or step == args.steps:
-            current_time = step * dt / 3600.0
-            times.append(current_time)
+            steps.append(step)
             point_zeta.append(float(zeta[point_i, point_j]))
 
             zeta_scale = max(0.02, float(np.nanmax(np.abs(np.where(wet_mask, zeta, np.nan)))) * 1.1)
-            image.set_data(np.where(wet_mask, zeta, np.nan))
+            image.set_data(np.where(wet_mask, zeta, np.nan).T)
             image.set_clim(-zeta_scale, zeta_scale)
             u, v = velocity(U, V, depth)
             arrows.set_UVC(
-                np.nan_to_num(v[::stride, ::stride]),
-                np.nan_to_num(u[::stride, ::stride]),
+                np.nan_to_num(u.T[::stride, ::stride]),
+                np.nan_to_num(v.T[::stride, ::stride]),
             )
             wx, wy = scenario.wind(min(step, args.steps - 1))
             lake_ax.set_title(
-                f"{scenario.name} | step {step}/{args.steps} | t={current_time:.2f} h | wind=({wx:.0f}, {wy:.0f}) m/s"
+                f"{scenario.name} | step {step}/{args.steps} | wind=({wx:.0f}, {wy:.0f}) m/s"
             )
 
-            line.set_data(times, point_zeta)
+            line.set_data(steps, point_zeta)
             line_ax.relim()
             line_ax.autoscale_view()
             plt.pause(args.pause)
@@ -141,7 +140,7 @@ def main() -> None:
             break
 
         wx, wy = scenario.wind(step)
-        zeta, U, V = step_forward(zeta, U, V, depth, wx, wy, dt, config)
+        zeta, U, V = step_forward(zeta, U, V, depth, wx, wy, config)
         zeta = np.where(wet_mask, zeta, 0.0)
         U = np.where(wet_mask, U, 0.0)
         V = np.where(wet_mask, V, 0.0)

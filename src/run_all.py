@@ -17,6 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-every", type=int, default=None, help="Save every Nth time step.")
     parser.add_argument("--dx", type=float, default=None, help="Grid spacing in x direction, meters.")
     parser.add_argument("--dy", type=float, default=None, help="Grid spacing in y direction, meters.")
+    parser.add_argument("--dt", type=float, default=None, help="Time step in seconds.")
     parser.add_argument("--output-dir", type=Path, default=None, help="Directory for figures and data.")
     return parser.parse_args()
 
@@ -32,6 +33,8 @@ def build_config(args: argparse.Namespace) -> ModelConfig:
         replacements["dx"] = args.dx
     if args.dy is not None:
         replacements["dy"] = args.dy
+    if args.dt is not None:
+        replacements["dt"] = args.dt
     if args.output_dir is not None:
         replacements["output_dir"] = args.output_dir
     return replace(config, **replacements)
@@ -43,19 +46,18 @@ def main() -> None:
     config.output_dir.mkdir(parents=True, exist_ok=True)
 
     depth = load_bathymetry(config.bathymetry_path)
-    dt = config.dt
 
     print("SWE lake model")
     print(f"bathymetry: {config.bathymetry_path}")
     print(f"grid shape: {depth.shape}, max depth: {depth.max():.1f} m")
-    print(f"dx={config.dx:.1f} m, dy={config.dy:.1f} m, dt={dt:.3f} s")
+    print(f"dx={config.dx:.1f} m, dy={config.dy:.1f} m, dt={config.dt:.3f} s")
     print(f"steps={config.steps}, output_every={config.output_every}")
 
     results = []
     data_dir = config.output_dir / "data"
     for scenario in SCENARIOS:
         print(f"running {scenario.name}: {scenario.description}")
-        result = run_simulation(scenario, depth, config, dt)
+        result = run_simulation(scenario, depth, config)
         save_npz(result, data_dir / f"{scenario.name}.npz")
         results.append(result)
 
