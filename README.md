@@ -2,6 +2,16 @@
 
 This project simulates wind-driven depth-averaged circulation in an enclosed lake using the linearized shallow water equations on the supplied bathymetry grid. The model evolves free-surface displacement `zeta` and depth-integrated transports `U` and `V`, then derives velocity, vorticity, eddy kinetic energy, snapshots, and animations from the saved results.
 
+## Lake Setup
+
+The original computational lake mask defines permanently wet cells and impermeable land boundaries.
+
+![Original lake geometry](assets/results/lake_geometry.png)
+
+The initial bathymetry supplies the still-water depth `H` used by the transport and velocity calculations.
+
+![Initial lake-bed depth](assets/results/initial_bathymetry.png)
+
 ## Scenarios
 
 | Scenario | Wind forcing | Geometry |
@@ -155,6 +165,8 @@ Running `python -m src.run_all` writes local model outputs under `outputs/`:
 
 - `outputs/summary.csv`
 - `outputs/data/scenario_*.npz`
+- `outputs/figures/lake_geometry.png`
+- `outputs/figures/initial_bathymetry.png`
 - `outputs/figures/question_a_point_timeseries.png`
 - `outputs/figures/question_c_hovmoller_transect_25.png`
 - `outputs/figures/question_e_vorticity_eke.png`
@@ -163,6 +175,7 @@ Running `python -m src.run_all` writes local model outputs under `outputs/`:
 
 The repository keeps selected lightweight presentation assets under `assets/results/`:
 
+- original lake geometry and initial bathymetry figures
 - cross-scenario Hovmoller and vorticity/EKE figures
 - flow snapshots and mean/std maps for all four scenarios
 - one compact scenario 1 GIF sampled every 10 saved frames

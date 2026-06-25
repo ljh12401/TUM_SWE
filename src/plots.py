@@ -54,6 +54,13 @@ def _lake_axes(result: SimulationResult) -> tuple[np.ndarray, np.ndarray]:
     return x_index, y_index
 
 
+def _depth_axes(depth: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    nx, ny = depth.shape
+    x_index = np.arange(nx)
+    y_index = np.arange(ny)
+    return x_index, y_index
+
+
 def _wind_label(result: SimulationResult, frame: int) -> str:
     wx, wy = result.winds[frame]
     return f"wind=({wx:.0f}, {wy:.0f}) m/s"
@@ -104,6 +111,43 @@ def plot_point_timeseries(results: list[SimulationResult], output_path: Path) ->
     ax.legend()
     fig.tight_layout()
     fig.savefig(output_path)
+    plt.close(fig)
+
+
+def plot_input_maps(depth: np.ndarray, output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    x_index, y_index = _depth_axes(depth)
+    wet = depth > 0.0
+
+    fig, ax = plt.subplots(figsize=(8, 4.0), dpi=180)
+    ax.contourf(x_index, y_index, wet.T.astype(float), levels=[0.5, 1.5], colors=["#f7fbff"], alpha=1.0)
+    ax.contour(x_index, y_index, wet.T.astype(float), levels=[0.5], colors="#888888", linewidths=1.0)
+    ax.set_title("Original lake geometry")
+    ax.set_xlabel("x index")
+    ax.set_ylabel("y index")
+    ax.set_xlim(x_index.min(), x_index.max())
+    ax.set_ylim(y_index.min(), y_index.max())
+    ax.set_aspect("equal", adjustable="box")
+    fig.tight_layout()
+    fig.savefig(output_dir / "lake_geometry.png")
+    plt.close(fig)
+
+    masked_depth = np.where(wet, depth, np.nan)
+    fig, ax = plt.subplots(figsize=(8, 4.4), dpi=180)
+    im = ax.imshow(
+        masked_depth.T,
+        origin="lower",
+        extent=(-0.5, depth.shape[0] - 0.5, -0.5, depth.shape[1] - 0.5),
+        aspect="equal",
+        cmap="viridis_r",
+    )
+    ax.contour(x_index, y_index, wet.T.astype(float), levels=[0.5], colors="#555555", linewidths=0.8)
+    ax.set_title("Initial lake-bed depth")
+    ax.set_xlabel("x index")
+    ax.set_ylabel("y index")
+    plt.colorbar(im, ax=ax, shrink=0.82, label="depth (m)")
+    fig.tight_layout()
+    fig.savefig(output_dir / "initial_bathymetry.png")
     plt.close(fig)
 
 
@@ -198,6 +242,7 @@ def plot_vorticity_eke(results: list[SimulationResult], output_path: Path) -> No
 
 def plot_all(results: list[SimulationResult], output_dir: Path) -> None:
     figures_dir = output_dir / "figures"
+    plot_input_maps(results[0].depth, figures_dir)
     plot_point_timeseries(results, figures_dir / "question_a_point_timeseries.png")
     plot_hovmoller(results, figures_dir / "question_c_hovmoller_transect_25.png")
     plot_vorticity_eke(results, figures_dir / "question_e_vorticity_eke.png")
