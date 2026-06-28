@@ -18,6 +18,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.animation import PillowWriter
 import numpy as np
+from scipy.ndimage import zoom
 
 from .diagnostics import (
     eddy_kinetic_energy,
@@ -469,13 +470,23 @@ def animate_scenario_comparison(
     plt.close(fig)
 
 
-def animate_4d_surface(result: SimulationResult, output_dir: Path, max_frames: int = 90) -> None:
+def animate_4d_surface(
+    result: SimulationResult,
+    output_dir: Path,
+    max_frames: int = 150,
+    upscale: int = 4,
+    vertical_exaggeration: float = 8.0,
+) -> None:
     """
-    4D-style lake visualization:
+    Smooth 4D-style lake visualization:
     x/y position = lake grid
     z axis = sea surface elevation zeta
     color = velocity magnitude
     animation = time
+
+    Note:
+    The physical model is still computed on the original grid.
+    The interpolation here is only for smoother visualization.
     """
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -488,39 +499,55 @@ def animate_4d_surface(result: SimulationResult, output_dir: Path, max_frames: i
     )
 
     x_index, y_index = _lake_axes(result)
-    X, Y = np.meshgrid(x_index, y_index)
+
+    # Create a finer grid only for visualization
+    x_smooth = np.linspace(x_index.min(), x_index.max(), len(x_index) * upscale)
+    y_smooth = np.linspace(y_index.min(), y_index.max(), len(y_index) * upscale)
+    X, Y = np.meshgrid(x_smooth, y_smooth)
 
     u, v = velocity_components(result)
     speed = np.sqrt(u**2 + v**2)
 
-    zeta = np.where(result.wet_mask, result.zeta, np.nan)
-    speed = np.where(result.wet_mask, speed, np.nan)
+    wet = result.wet_mask
+    wet_smooth = zoom(wet.T.astype(float), upscale, order=1) > 0.5
 
-    zmax = float(np.nanmax(np.abs(zeta)))
+    zeta = np.where(wet, result.zeta, 0.0)
+    speed = np.where(wet, speed, 0.0)
+
+    zmax = float(np.nanmax(np.abs(np.where(wet, result.zeta, np.nan))))
     if zmax == 0.0:
         zmax = 1.0
 
-    speed_max = float(np.nanmax(speed))
+    speed_max = float(np.nanmax(np.where(wet, speed, np.nan)))
     if speed_max == 0.0:
         speed_max = 1.0
 
     cmap = plt.cm.viridis
     norm = plt.Normalize(vmin=0.0, vmax=speed_max)
 
-    fig = plt.figure(figsize=(8, 7), dpi=120)
+    fig = plt.figure(figsize=(9, 7), dpi=140)
     ax = fig.add_subplot(111, projection="3d")
 
     def draw_frame(frame_id: int):
         ax.clear()
 
-        Z = zeta[frame_id].T
-        C = cmap(norm(speed[frame_id].T))
+        # Original arrays are (x, y), so transpose for plotting as (y, x)
+        Z = zoom(zeta[frame_id].T, upscale, order=3)
+        S = zoom(speed[frame_id].T, upscale, order=3)
+
+        Z[~wet_smooth] = np.nan
+        S[~wet_smooth] = 0.0
+
+        # Enlarge zeta visually so the wave motion is easier to see
+        Z_plot = Z * vertical_exaggeration
+
+        colors = cmap(norm(S))
 
         ax.plot_surface(
             X,
             Y,
-            Z,
-            facecolors=C,
+            Z_plot,
+            facecolors=colors,
             rstride=1,
             cstride=1,
             linewidth=0,
@@ -531,14 +558,23 @@ def animate_4d_surface(result: SimulationResult, output_dir: Path, max_frames: i
         wx, wy = result.winds[frame_id]
 
         ax.set_title(
-            f"{result.name} | 4D lake surface | step={result.steps[frame_id]}\n"
-            f"wind=({wx:.0f}, {wy:.0f}) m/s"
+            f"{result.name} | smooth 4D lake surface | step={result.steps[frame_id]}\n"
+            f"wind=({wx:.0f}, {wy:.0f}) m/s | zeta ×{vertical_exaggeration:.0f} visually"
         )
+
         ax.set_xlabel("x index")
         ax.set_ylabel("y index")
-        ax.set_zlabel("zeta (m)")
-        ax.set_zlim(-zmax, zmax)
-        ax.view_init(elev=35, azim=-55)
+        ax.set_zlabel("zeta, visually exaggerated")
+
+        ax.set_xlim(x_index.min(), x_index.max())
+        ax.set_ylim(y_index.min(), y_index.max())
+        ax.set_zlim(-zmax * vertical_exaggeration, zmax * vertical_exaggeration)
+
+        # Make the lake look wider and flatter, more natural for water surface
+        ax.set_box_aspect((2.2, 1.0, 0.35))
+
+        # Camera angle
+        ax.view_init(elev=32, azim=-58)
 
         return []
 
@@ -552,13 +588,13 @@ def animate_4d_surface(result: SimulationResult, output_dir: Path, max_frames: i
         fig,
         draw_frame,
         frames=frame_ids,
-        interval=90,
+        interval=60,
         blit=False,
     )
 
     animation.save(
-        output_dir / f"{result.name}_4d_surface_animation.gif",
-        writer=PillowWriter(fps=12),
+        output_dir / f"{result.name}_4d_surface_animation_smooth.gif",
+        writer=PillowWriter(fps=18),
     )
 
     plt.close(fig)
