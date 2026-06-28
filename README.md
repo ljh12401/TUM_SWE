@@ -178,3 +178,40 @@ This sweep keeps `dt = 20 s` and varies `dx = dy`.
 ![Grid-spacing stability sweep](assets/results/stability_grid_spacing_sweep.png)
 
 At the default `dt = 20 s`, grid spacings of `250 m` and larger stayed finite for the full test. Smaller spacings failed because the same time step becomes too large relative to the grid spacing. The default `dx = dy = 1000 m` is therefore well inside the stable range for this setup.
+
+### 4D Lake Surface Visualizations
+
+The following 4D-style visualizations show the time evolution of the lake free surface for all four scenarios.  
+In these plots:
+
+- the **x** and **y** axes represent the lake grid,
+- the **surface height** represents the free-surface displacement `zeta`,
+- the **surface color** shows the velocity magnitude,
+- and **time evolution** is shown through the animation.
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/results/scenario_1_4d_surface_animation_smooth.gif" width="95%">
+      <br>
+      <b>Scenario 1.</b> Constant easterly wind over the original lake. The basin develops a smooth wind-driven surface setup and circulation pattern.
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/results/scenario_2_4d_surface_animation_smooth.gif" width="95%">
+      <br>
+      <b>Scenario 2.</b> Northward wind followed by easterly wind and then calm conditions. The animation highlights the adjustment of the surface and residual oscillation after the forcing changes.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="assets/results/scenario_3_4d_surface_animation_smooth.gif" width="95%">
+      <br>
+      <b>Scenario 3.</b> Combined easterly and northerly wind creates an oblique setup and stronger circulation response before the forcing switches.
+    </td>
+    <td align="center" width="50%">
+      <img src="assets/results/scenario_4_4d_surface_animation_smooth.gif" width="95%">
+      <br>
+      <b>Scenario 4.</b> The same forcing as Scenario 3, but with an artificial land barrier at the middle x-index. The separated basins produce a visibly different surface response.
+    </td>
+  </tr>
+</table>
