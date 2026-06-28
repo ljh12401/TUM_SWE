@@ -9,6 +9,8 @@ from .model import SimulationResult, gradient_x, gradient_y
 
 
 def velocity_components(result: SimulationResult) -> tuple[np.ndarray, np.ndarray]:
+    """Convert depth-integrated transports U/V into depth-averaged velocities."""
+
     safe_depth = np.where(result.depth > 0.0, result.depth, np.nan)
     u = result.U / safe_depth
     v = result.V / safe_depth
@@ -16,6 +18,8 @@ def velocity_components(result: SimulationResult) -> tuple[np.ndarray, np.ndarra
 
 
 def masked_stats(field: np.ndarray, wet_mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Compute time statistics only over permanently wet cells."""
+
     mean_field = np.full(field.shape[1:], np.nan, dtype=float)
     std_field = np.full(field.shape[1:], np.nan, dtype=float)
     mean_field[wet_mask] = np.mean(field[:, wet_mask], axis=0)
@@ -24,6 +28,8 @@ def masked_stats(field: np.ndarray, wet_mask: np.ndarray) -> tuple[np.ndarray, n
 
 
 def vorticity(result: SimulationResult) -> np.ndarray:
+    """Compute vertical vorticity from depth-averaged velocity."""
+
     wet_mask = result.wet_mask
     vort = []
     for U, V in zip(result.U, result.V):
@@ -37,6 +43,8 @@ def vorticity(result: SimulationResult) -> np.ndarray:
 
 
 def eddy_kinetic_energy(result: SimulationResult) -> np.ndarray:
+    """Compute EKE from velocity anomalies relative to each cell's time mean."""
+
     u, v = velocity_components(result)
     u_mean = np.full(result.depth.shape, np.nan, dtype=float)
     v_mean = np.full(result.depth.shape, np.nan, dtype=float)
@@ -56,6 +64,8 @@ def net_transport_through_channel(result: SimulationResult, y_index: int | None 
 
 
 def scenario_summary(result: SimulationResult) -> dict[str, float | str]:
+    """Build scalar metrics for the scenario comparison table."""
+
     u, v = velocity_components(result)
     vort = vorticity(result)
     eke = eddy_kinetic_energy(result)
@@ -85,11 +95,14 @@ def save_summary_csv(results: list[SimulationResult], output_path: Path) -> None
 
 
 def save_npz(result: SimulationResult, output_path: Path) -> None:
+    """Store enough state to replay zeta and flow without rerunning the model."""
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         output_path,
         depth=result.depth,
         times=result.times,
+        steps=result.steps,
         zeta=result.zeta,
         U=result.U,
         V=result.V,
